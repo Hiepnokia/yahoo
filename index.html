@@ -198,7 +198,11 @@
         <select id="select-month-year" onchange="onMonthYearChange()">
           <option value="ALL">Tất cả thời gian</option>
         </select>
-        <button style="padding: 5px 12px; background: #0d9488; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12.5px;" onclick="exportExcel()">📥 Xuất Excel (.xlsx)</button>
+        
+        <!-- NÚT NHẬP XUẤT EXCEL -->
+        <input type="file" id="import-excel-file" style="display:none" accept=".xlsx, .xls" onchange="importExcel(event)">
+        <button style="padding: 5px 12px; background: #0284c7; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12.5px; margin-left: 10px;" onclick="document.getElementById('import-excel-file').click()">📤 Nhập Excel</button>
+        <button style="padding: 5px 12px; background: #0d9488; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12.5px;" onclick="exportExcel()">📥 Xuất Excel</button>
       </div>
     </div>
 
@@ -1062,6 +1066,89 @@
 
       const fileName = selectedMonth === 'ALL' ? "Yahoo_Sedori_TatCa.xlsx" : `Yahoo_Sedori_${selectedMonth}.xlsx`;
       XLSX.writeFile(wb, fileName);
+    }
+
+    // NHẬP EXCEL (IMPORT)
+    async function importExcel(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      if (!confirm('Tính năng này sẽ nạp dữ liệu từ file Excel vào hệ thống. Các đơn hàng trùng lặp sẽ được cập nhật giá, đơn mới sẽ được thêm vào. Bạn có muốn tiếp tục?')) {
+        event.target.value = '';
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = async function(e) {
+        try {
+          const data = new Uint8Array(e.target.result);
+          const workbook = XLSX.read(data, {type: 'array'});
+          
+          let importedCount = 0;
+          let updatedCount = 0;
+
+          workbook.SheetNames.forEach(sheetName => {
+            // Bỏ qua sheet tổng hợp
+            if (sheetName === "Tổng hợp đơn hàng") return; 
+            
+            // Nếu nick chưa tồn tại, tự động tạo mới
+            if (!nickList.some(n => n.name === sheetName)) {
+              nickList.push({ name: sheetName, phone: '', dob: '', email: '', password: '' });
+            }
+            
+            const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+            let existingOrders = orders[sheetName] || [];
+
+            rows.forEach(row => {
+              if (row['Thời gian'] && row['Sản phẩm']) {
+                const shopTime = String(row['Thời gian']);
+                const product = String(row['Sản phẩm']);
+                
+                // Tìm xem đơn này đã có chưa (dựa vào thời gian và tên SP)
+                let existingIdx = existingOrders.findIndex(o => o.shopTime === shopTime && o.product === product);
+                
+                if (existingIdx !== -1) {
+                  // Đã có -> Cập nhật các thông số (đặc biệt là giá thu mua)
+                  existingOrders[existingIdx].giaGoc = parseInt(String(row['Giá gốc (円)']).replace(/[,\.]/g, '')) || existingOrders[existingIdx].giaGoc;
+                  existingOrders[existingIdx].tienThe = parseInt(String(row['Tiền thẻ (円)']).replace(/[,\.]/g, '')) || existingOrders[existingIdx].tienThe;
+                  existingOrders[existingIdx].pointDung = parseInt(String(row['Point dùng (pt)']).replace(/[,\.]/g, '')) || existingOrders[existingIdx].pointDung;
+                  existingOrders[existingIdx].pointNhan = parseInt(String(row['Point nhận (pt)']).replace(/[,\.]/g, '')) || existingOrders[existingIdx].pointNhan;
+                  existingOrders[existingIdx].vonRong = parseInt(String(row['Vốn ròng (円)']).replace(/[,\.]/g, '')) || existingOrders[existingIdx].vonRong;
+                  existingOrders[existingIdx].giaThuMua = parseInt(String(row['Giá thu mua (円)']).replace(/[,\.]/g, '')) || existingOrders[existingIdx].giaThuMua;
+                  updatedCount++;
+                } else {
+                  // Chưa có -> Thêm mới
+                  existingOrders.push({
+                    id: Date.now() + Math.random(),
+                    shopTime: shopTime,
+                    product: product,
+                    giaGoc: parseInt(String(row['Giá gốc (円)'] || '0').replace(/[,\.]/g, '')) || 0,
+                    tienThe: parseInt(String(row['Tiền thẻ (円)'] || '0').replace(/[,\.]/g, '')) || 0,
+                    pointDung: parseInt(String(row['Point dùng (pt)'] || '0').replace(/[,\.]/g, '')) || 0,
+                    pointNhan: parseInt(String(row['Point nhận (pt)'] || '0').replace(/[,\.]/g, '')) || 0,
+                    vonRong: parseInt(String(row['Vốn ròng (円)'] || '0').replace(/[,\.]/g, '')) || 0,
+                    giaThuMua: parseInt(String(row['Giá thu mua (円)'] || '0').replace(/[,\.]/g, '')) || 0
+                  });
+                  importedCount++;
+                }
+              }
+            });
+            
+            orders[sheetName] = existingOrders;
+          });
+
+          await saveData();
+          initNickSelect();
+          renderNickManagerTable();
+          onMonthYearChange(); // Render lại bảng hiện tại
+          alert(`Nạp Excel thành công!\n- Thêm mới: ${importedCount} đơn\n- Cập nhật: ${updatedCount} đơn`);
+        } catch (err) {
+          console.error(err);
+          alert('Có lỗi xảy ra khi đọc file Excel. Vui lòng kiểm tra lại!');
+        }
+        event.target.value = ''; // Reset input
+      };
+      reader.readAsArrayBuffer(file);
     }
 
     // KHỞI CHẠY KHI MỞ TRANG
