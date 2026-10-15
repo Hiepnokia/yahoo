@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <title>⚡ Quản Lý đơn hàng Yahoo</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: #1a73e8;
+      --navy: #1a365d;
+      --success: #16a34a;
+      --warning: #b45309;
+      --bg: #f1f5f9;
+      --border: #cbd5e1;
+    }
+    * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background-color: var(--bg);
+      color: #1e293b;
+    }
+    .app-wrapper {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      padding: 12px 16px;
+      box-sizing: border-box;
+    }
+
+    h1 { margin: 0 0 6px 0; font-size: 20px; color: #0f172a; display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+    
+    /* Thanh trạng thái lưu tự động */
+    .sync-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+      padding: 6px 12px;
+      border-radius: 6px;
+      margin-bottom: 8px;
+      font-size: 12.5px;
+      flex-shrink: 0;
+    }
+    .sync-status { font-weight: bold; }
+    .status-connected { color: #15803d; }
+    .status-pending { color: #b45309; }
+    .status-disconnected { color: #b91c1c; }
+
+    /* Thanh điều hướng tab & Bộ lọc Tháng/Năm */
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+      border-bottom: 2px solid var(--border);
+      padding-bottom: 6px;
+      flex-shrink: 0;
+      gap: 10px;
+    }
+    .nav-tabs { display: flex; gap: 6px; }
+    .tab-btn { padding: 7px 14px; border: none; background: #e2e8f0; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
+    .tab-btn.active { background: var(--primary); color: white; }
+
+    .filter-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: white;
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12.5px;
+      font-weight: bold;
+    }
+    .filter-box select {
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-weight: bold;
+      color: #1e3a8a;
+      background: #f8fafc;
+      outline: none;
+    }
+
+    /* VÙNG NỘI DUNG CHÍNH - CHIẾM 100% CHIỀU CAO */
+    .tab-content {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .container {
+      display: grid;
+      grid-template-columns: 340px 1fr;
+      gap: 12px;
+      height: 100%;
+      min-height: 0;
+    }
+    .card {
+      background: white;
+      padding: 12px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      min-height: 0;
+      box-sizing: border-box;
+    }
+    .card h3 {
+      margin-top: 0;
+      margin-bottom: 8px;
+      font-size: 14.5px;
+      border-bottom: 1px solid #e2e8f0;
+      padding-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-shrink: 0;
+    }
+    textarea {
+      width: 100%;
+      flex: 1;
+      min-height: 140px;
+      padding: 8px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-size: 12.5px;
+      resize: none;
+    }
+    textarea:focus { outline: none; border-color: var(--primary); }
+    .btn { width: 100%; padding: 9px; margin-top: 8px; border: none; border-radius: 6px; font-weight: bold; font-size: 13.5px; cursor: pointer; transition: 0.2s; flex-shrink: 0; }
+    .btn-green { background: #1aff00; color: #000; border: 2px solid #15803d; }
+    .btn-green:hover { background: #15803d; color: white; }
+    .btn-blue { background: var(--primary); color: white; }
+    .form-group { margin-bottom: 8px; flex-shrink: 0; }
+    label { display: block; font-size: 12.5px; font-weight: bold; margin-bottom: 4px; }
+    select, input[type="text"] { width: 100%; padding: 6px 8px; border: 1px solid var(--border); border-radius: 6px; font-size: 12.5px; }
+    
+    /* BẢNG TỰ CO GIÃN ĐẦY KHUNG */
+    .table-responsive {
+      flex: 1;
+      overflow: auto;
+      min-height: 0;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: white;
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; text-align: left; background: white; }
+    th, td { padding: 9px 10px; border: 1px solid #e2e8f0; white-space: nowrap; }
+    th { background: #1e3a8a; color: white; position: sticky; top: 0; z-index: 2; text-align: center; font-weight: 600; }
+    tr:hover { background-color: #f8fafc; }
+    .text-right { text-align: right; }
+    .text-center { text-align: center; }
+    .text-bold { font-weight: bold; }
+    .tag-cap { background: #fee2e2; color: #b91c1c; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11.5px; }
+    .tag-ok { background: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-weight: bold; font-size: 11.5px; }
+    .buy-input { width: 100px; padding: 5px; text-align: right; font-size: 12.5px; border: 1px solid #94a3b8; border-radius: 4px; font-weight: bold; }
+    .flex-row { display: flex; gap: 8px; align-items: center; }
+    
+    .table-summary-orders th { background: #1a365d; }
+    .spacer-row { background: #f1f5f9 !important; height: 14px; }
+    .spacer-row td { border-left: none; border-right: none; background: #f1f5f9; padding: 0; }
+  </style>
+</head>
+<body>
+
+  <div class="app-wrapper">
+    <h1>⚡ Quản Lý đơn hàng Yahoo</h1>
+
+    <!-- THANH TRẠNG THÁI LƯU TỰ ĐỘNG THÔNG MINH -->
+    <div class="sync-bar" style="display: none;">
+      <span>📂 <strong>File lưu trữ:</strong> <span id="file-path-display">Đang kiểm tra...</span></span>
+      <button id="btn-reconnect" style="display:none; padding: 4px 10px; background: #d97706; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" onclick="kichHoatLaiQuyen()">🔓 Bấm để tiếp tục tự lưu</button>
+      <button style="padding: 4px 10px; background: var(--primary); color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;" onclick="chonFileLuuTru()">📂 Chọn file mới (.json)</button>
+      <span id="save-status" class="sync-status status-disconnected">● Kiểm tra kết nối...</span>
+    </div>
+
+    <!-- THANH ĐIỀU HƯỚNG VÀ BỘ LỌC THÁNG/NĂM -->
+    <div class="header-bar">
+      <div class="nav-tabs">
+        <button class="tab-btn active" onclick="switchTab('orders')">📦 Nhập dữ liệu đơn hàng</button>
+        <button class="tab-btn" onclick="switchTab('all-orders')">📋 Tổng hợp đơn hàng</button>
+        <button class="tab-btn" onclick="switchTab('summary')">📊 Dashboard Tổng Hợp</button>
+        <button class="tab-btn" onclick="switchTab('terms')">📜 Bảng Điều Khoản</button>
+        <button class="tab-btn" onclick="switchTab('nicks')">⚙️ Chỉnh sửa thông tin nick</button>
+      </div>
+
+      <!-- BỘ LỌC THÁNG / NĂM -->
+      <div class="filter-box">
+        <span>📅 Xem theo Tháng/Năm:</span>
+        <select id="select-month-year" onchange="onMonthYearChange()">
+          <option value="ALL">Tất cả thời gian</option>
+        </select>
+        <button style="padding: 5px 12px; background: #0d9488; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12.5px;" onclick="exportExcel()">📥 Xuất Excel (.xlsx)</button>
+      </div>
+    </div>
+
+    <!-- TAB 1: NHẬP DỮ LIỆU ĐƠN HÀNG (CÁC NICK) -->
+    <div id="tab-orders" class="tab-content container">
+      <div class="card">
+        <h3>➕ Dán Text Đơn Hàng Mới</h3>
+        <div class="form-group">
+          <label>Chọn Profile / Nick:</label>
+          <div class="flex-row">
+            <select id="select-nick" onchange="renderOrderTable()"></select>
+          </div>
+        </div>
+        <div class="form-group" style="flex: 1; display: flex; flex-direction: column;">
+          <label>Nội dung đơn hàng (Yahoo):</label>
+          <textarea id="raw-order" placeholder="Copy toàn bộ chi tiết đơn hàng Yahoo và dán vào đây..."></textarea>
+        </div>
+        <button class="btn btn-green" onclick="xuLyDonHang()">👉 Nhập & Bóc Tách Đơn Hàng</button>
+      </div>
+
+      <div class="card">
+        <h3>
+          <span>Danh Sách Đơn: <span id="current-nick-title" style="color: var(--primary);"></span></span>
+          <button style="padding: 4px 8px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 12px;" onclick="xoaTatCaDonCuaNick()">Xóa hết đơn Nick này</button>
+        </h3>
+        <div class="table-responsive">
+          <table id="table-orders">
+            <thead>
+              <tr>
+                <th>STT</th>
+                <th>Thời gian</th>
+                <th style="min-width: 320px; max-width: 550px;">Sản phẩm</th>
+                <th>Giá gốc (円)</th>
+                <th>Tiền thẻ (円)</th>
+                <th>Point dùng (pt)</th>
+                <th>Point nhận (pt)</th>
+                <th>Vốn ròng (円)</th>
+                <th>Giá thu mua (円)</th>
+                <th>Lãi/Lỗ ròng (円)</th>
+                <th>Chênh lệch tiền mặt (円)</th>
+                <th>Hụt Point (pt)</th>
+                <th>Đạt trần chưa</th>
+                <th>Cần quẹt thêm (円)</th>
+                <th>Xóa</th>
+              </tr>
+            </thead>
+            <tbody id="order-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 2: TỔNG HỢP ĐƠN HÀNG -->
+    <div id="tab-all-orders" class="tab-content" style="display: none;">
+      <div class="card">
+        <h3>
+          <span>📋 Tổng Hợp Đơn Hàng (Tự động gom nhóm sản phẩm theo ngày & cách dòng)</span>
+          <span style="font-size: 12.5px; font-weight: normal; color: #64748b;">(Nhập Giá thu mua tại đây sẽ tự động lưu và đồng bộ)</span>
+        </h3>
+        <div class="table-responsive">
+          <table class="table-summary-orders">
+            <thead>
+              <tr>
+                <th style="width: 45px;">STT</th>
+                <th style="width: 170px;">Ngày đặt</th>
+                <th style="width: 130px;">Tên Profile / Nick</th>
+                <th style="min-width: 450px;">ご注文商品 (Tên sản phẩm)</th>
+                <th style="width: 130px;">Giá thu mua (円)</th>
+                <th style="width: 140px;">Lãi / Lỗ ròng (円)</th>
+                <th style="width: 150px;">Chênh lệch tiền mặt (円)</th>
+              </tr>
+            </thead>
+            <tbody id="all-orders-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 3: DASHBOARD TỔNG HỢP TOÀN BỘ NICK -->
+    <div id="tab-summary" class="tab-content" style="display: none;">
+      <div class="card">
+        <h3 style="background: #0d652d; color: white; padding: 10px; margin: -12px -14px 10px -14px; border-radius: 8px 8px 0 0;">
+          <span>📊 Dashboard Tổng Hợp Toàn Bộ Nick</span>
+          <span id="summary-month-label" style="font-size: 12.5px; font-weight: normal;">(Tất cả thời gian)</span>
+        </h3>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr style="background: #0d652d;">
+                <th>Tên Nick</th>
+                <th>Số đơn đã đặt</th>
+                <th>Tổng tiền quẹt thẻ (円)</th>
+                <th>Tổng point đã dùng (pt)</th>
+                <th>Tổng point nhận về (pt)</th>
+                <th>Tổng vốn ròng (円)</th>
+                <th>Tổng giá thu mua (円)</th>
+                <th>Tổng Lãi / Lỗ ròng (円)</th>
+                <th>Dòng tiền mặt ròng (円)</th>
+              </tr>
+            </thead>
+            <tbody id="summary-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: ĐIỀU KHOẢN -->
+    <div id="tab-terms" class="tab-content container" style="display: none;">
+      <div class="card">
+        <h3>📜 Nhập Điều Khoản Yahoo</h3>
+        <p style="font-size: 12px; color: #64748b; margin-top: -3px; margin-bottom: 6px;">Dán 1 dòng bảng ngang hoặc toàn bộ bài thông báo chiến dịch của Yahoo.</p>
+        <textarea id="raw-term" placeholder="Dán văn bản điều khoản / chiến dịch vào đây..."></textarea>
+        <button class="btn btn-green" onclick="xuLyDieuKhoan()">Xác Nhận & Cập Nhật</button>
+        <button class="btn" style="background: #e2e8f0; margin-top: 6px;" onclick="khoiPhucDieuKhoanMau()">Khôi phục bảng mẫu chuẩn</button>
+      </div>
+
+      <div class="card">
+        <h3>Danh Sách Chiến Dịch Đang Áp Dụng (Sắp xếp ngày tăng dần)</h3>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr style="background: #b45309;">
+                <th>Ngày</th>
+                <th>Thứ</th>
+                <th>Tên sự kiện / Chiến dịch</th>
+                <th>% Thưởng</th>
+                <th>Trần Point (pt)</th>
+                <th>Tiền trần tối đa (円)</th>
+                <th>Ghi chú</th>
+              </tr>
+            </thead>
+            <tbody id="term-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: CHỈNH SỬA THÔNG TIN NICK -->
+    <div id="tab-nicks" class="tab-content" style="display: none;">
+      <div class="card" style="max-width: 800px; margin: 0 auto; width: 100%;">
+        <h3>⚙️ Quản Lý Danh Sách Nick & Số Điện Thoại</h3>
+        <div class="flex-row" style="margin-bottom: 10px; flex-shrink: 0;">
+          <input type="text" id="new-nick-name" placeholder="Tên Nick mới (VD: Nick 7)..." style="flex: 1;">
+          <input type="text" id="new-nick-phone" placeholder="Số điện thoại (VD: 08080109928)..." style="flex: 1;">
+          <button class="btn btn-blue" style="width: auto; margin: 0; padding: 7px 16px;" onclick="themNickDanhBa()">+ Thêm Nick</button>
+        </div>
+        <div class="table-responsive">
+          <table>
+            <thead>
+              <tr>
+                <th style="width: 60px;">STT</th>
+                <th>Tên Profile / Nick</th>
+                <th>Số điện thoại (SĐT)</th>
+                <th style="width: 100px;">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody id="nicks-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const BIN_ID = '6ad0e5b7ac6210605a342b1b'; 
+    const API_KEY = '$2a$10$Zt.FK1xMtu4VWjBAQns0r.QixuORGslHfz.Its9i80.GWrydP.j.W'; 
+
+    let currentTab = 'orders';
+
+    let nickList = [
+      { name: 'Hiệp', phone: '08080109928' },
+      { name: 'Duyên', phone: '' },
+      { name: 'phụ Hiệp', phone: '' },
+      { name: 'phụ Duyên', phone: '' },
+      { name: 'Ngọc', phone: '' },
+      { name: 'Đạt', phone: '' }
+    ];
+
+    let orders = {};
+    let terms = [
+      { day: 2, weekday: '金', title: 'ボーナスストアPlus (+2%)', rate: 0.02, cap: 5000, maxSpend: 250000, note: '' },
+      { day: 4, weekday: '日', title: 'プレミアムな日曜日 (+5%)', rate: 0.05, cap: 3000, maxSpend: 60000, note: '' },
+      { day: 11, weekday: '日', title: 'プレミアムな日曜日 (+5%)', rate: 0.05, cap: 3000, maxSpend: 60000, note: '' },
+      { day: 15, weekday: '木', title: '5のつく日 (+4%)', rate: 0.04, cap: 2000, maxSpend: 50000, note: '' }
+    ];
+
+    async function loadDataFromCloud() {
+      try {
+        if (!BIN_ID || !API_KEY || BIN_ID === 'YOUR_BIN_ID') return;
+        let res = await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}/latest`, {
+          headers: { "X-Master-Key": API_KEY }
+        });
+        let json = await res.json();
+        if (json && json.record) {
+          if (json.record.nickList) nickList = json.record.nickList;
+          if (json.record.orders) orders = json.record.orders;
+          if (json.record.terms) terms = json.record.terms;
+        }
+      } catch (e) {
+        console.error("Lỗi khi tải dữ liệu từ Cloud:", e);
+      } finally {
+        updateMonthYearDropdown();
+        initNickSelect();
+      }
+    }
+
+    async function saveData() {
+      if (!BIN_ID || !API_KEY || BIN_ID === 'YOUR_BIN_ID') {
+        console.warn("Chưa cấu hình JSONBin, dữ liệu không được lưu.");
+        updateMonthYearDropdown();
+        return;
+      }
+      try {
+        const exportObj = { nickList, orders, terms, updatedAt: new Date().toISOString() };
+        await fetch(`https://api.jsonbin.io/v3/b/${BIN_ID}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Master-Key": API_KEY
+          },
+          body: JSON.stringify(exportObj)
+        });
+      } catch (e) {
+        console.error("Lỗi khi lưu dữ liệu lên Cloud:", e);
+      }
+      updateMonthYearDropdown();
+    }
+
+    function getMonthYearKey(dateStr) {
+      if (!dateStr) return 'UNKNOWN';
+      const m = dateStr.match(/([0-9]{4})年([0-9]{1,2})月/);
+      if (m) {
+        const year = m[1];
+        const month = m[2].padStart(2, '0');
+        return `${year}-${month}`;
+      }
+      return 'UNKNOWN';
+    }
+
+    function updateMonthYearDropdown() {
+      const select = document.getElementById('select-month-year');
+      const currentSelected = select.value;
+      const monthSet = new Set();
+
+      Object.keys(orders).forEach(nick => {
+        (orders[nick] || []).forEach(o => {
+          const key = getMonthYearKey(o.shopTime);
+          if (key !== 'UNKNOWN') monthSet.add(key);
+        });
+      });
+
+      const sortedMonths = Array.from(monthSet).sort().reverse();
+
+      select.innerHTML = '<option value="ALL">Tất cả thời gian</option>';
+      sortedMonths.forEach(mKey => {
+        const [y, m] = mKey.split('-');
+        const opt = document.createElement('option');
+        opt.value = mKey;
+        opt.innerText = `Tháng ${m}/${y}`;
+        select.appendChild(opt);
+      });
+
+      if (sortedMonths.includes(currentSelected) || currentSelected === 'ALL') {
+        select.value = currentSelected;
+      } else {
+        select.value = 'ALL';
+      }
+    }
+
+    function onMonthYearChange() {
+      if (currentTab === 'orders') renderOrderTable();
+      if (currentTab === 'all-orders') renderAllOrdersTable();
+      if (currentTab === 'summary') renderSummaryTable();
+    }
+
+    function switchTab(tab) {
+      currentTab = tab;
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById('tab-orders').style.display = tab === 'orders' ? 'grid' : 'none';
+      document.getElementById('tab-all-orders').style.display = tab === 'all-orders' ? 'flex' : 'none';
+      document.getElementById('tab-summary').style.display = tab === 'summary' ? 'flex' : 'none';
+      document.getElementById('tab-terms').style.display = tab === 'terms' ? 'grid' : 'none';
+      document.getElementById('tab-nicks').style.display = tab === 'nicks' ? 'flex' : 'none';
+      event.target.classList.add('active');
+
+      if (tab === 'orders') renderOrderTable();
+      if (tab === 'all-orders') renderAllOrdersTable();
+      if (tab === 'summary') renderSummaryTable();
+      if (tab === 'terms') renderTermTable();
+      if (tab === 'nicks') renderNickManagerTable();
+    }
+
+    function initNickSelect() {
+      const select = document.getElementById('select-nick');
+      select.innerHTML = '';
+      nickList.forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n.name;
+        opt.innerText = n.name;
+        select.appendChild(opt);
+      });
+      renderOrderTable();
+    }
+
+    // BÓC TÁCH ĐƠN HÀNG
+    async function xuLyDonHang() {
+      const raw = document.getElementById('raw-order').value.trim();
+      const nick = document.getElementById('select-nick').value;
+      if (!raw) { alert('Vui lòng dán văn bản đơn hàng!'); return; }
+
+      const flat = raw.replace(/[\r\n]+/g, ' ');
+
+      const mTime = flat.match(/([0-9]{4}年[0-9]{1,2}月[0-9]{1,2}日(?:\s*[0-9]{1,2}:[0-9]{1,2})?)/);
+      const shopTime = mTime ? mTime[1] : '';
+
+      const mProd = flat.match(/ご注文商品\s*(?:ソニー\(SONY\)\s*)*(.*?)\s*[0-9,]+円/);
+      const product = mProd ? mProd[1].trim() : 'Chưa rõ chi tiết SP';
+
+      const mGoc = raw.match(/商品合計[\s\S]*?([0-9,]+)\s*円/);
+      const giaGoc = mGoc ? parseInt(mGoc[1].replace(/,/g, ''), 10) : 0;
+
+      const mThe = flat.match(/合計金額[^0-9]*([0-9,]+)\s*円/);
+      const tienThe = mThe ? parseInt(mThe[1].replace(/,/g, ''), 10) : 0;
+
+      const mDung = flat.match(/獲得ポイント等今すぐ利用[^0-9]*([0-9,]+)\s*pt/);
+      const pointDung = mDung ? parseInt(mDung[1].replace(/,/g, ''), 10) : 0;
+
+      let mNhan = flat.match(/獲得ポイント\s*(?:PayPayポイント|PayPayポイント等)?\s*([0-9,]+)\s*pt/);
+      if (!mNhan) mNhan = flat.match(/獲得ポイント.*?PayPayポイント[^0-9]*([0-9,]+)\s*pt/);
+      let pointNhan = mNhan ? parseInt(mNhan[1].replace(/,/g, ''), 10) : 0;
+
+      const mCard = flat.match(/PayPayカード\s*([0-9,]+)\s*円/);
+      if (mCard) {
+        const cardVal = parseInt(mCard[1].replace(/,/g, ''), 10);
+        pointNhan += Math.floor(cardVal * 0.015);
+      }
+
+      const mCoupon = flat.match(/クーポン利用[^0-9]*([0-9,]+)\s*円/);
+      const coupon = mCoupon ? parseInt(mCoupon[1].replace(/,/g, ''), 10) : 0;
+
+      const vonRong = giaGoc - pointDung - pointNhan - coupon;
+
+      const newOrder = {
+        id: Date.now() + Math.random(),
+        shopTime,
+        product,
+        giaGoc,
+        tienThe,
+        pointDung,
+        pointNhan,
+        vonRong,
+        giaThuMua: 0
+      };
+
+      if (!orders[nick]) orders[nick] = [];
+      orders[nick].push(newOrder);
+
+      await saveData();
+      document.getElementById('raw-order').value = '';
+      renderOrderTable();
+    }
+
+    async function updateBuyPrice(nick, orderId, val) {
+      const num = parseInt(String(val).replace(/[,\.]/g, ''), 10) || 0;
+      if (orders[nick]) {
+        const ord = orders[nick].find(o => o.id === orderId);
+        if (ord) {
+          ord.giaThuMua = num;
+          await saveData();
+          renderOrderTable();
+        }
+      }
+    }
+
+    async function xoaDonHang(nick, orderId) {
+      if (confirm('Bạn có chắc muốn xóa đơn này?')) {
+        orders[nick] = orders[nick].filter(o => o.id !== orderId);
+        await saveData();
+        renderOrderTable();
+      }
+    }
+
+    async function xoaTatCaDonCuaNick() {
+      const nick = document.getElementById('select-nick').value;
+      const selectedMonth = document.getElementById('select-month-year').value;
+      const msg = selectedMonth === 'ALL' 
+        ? `Xóa TOÀN BỘ đơn của Nick [${nick}]?` 
+        : `Xóa toàn bộ đơn của Nick [${nick}] trong ${selectedMonth}?`;
+
+      if (confirm(msg)) {
+        if (selectedMonth === 'ALL') {
+          orders[nick] = [];
+        } else {
+          orders[nick] = (orders[nick] || []).filter(o => getMonthYearKey(o.shopTime) !== selectedMonth);
+        }
+        await saveData();
+        renderOrderTable();
+      }
+    }
+
+    // TAB 1: RENDER ĐƠN HÀNG (HIỂN THỊ FULL 100% TÊN SẢN PHẨM, TỰ XUỐNG DÒNG)
+    function renderOrderTable() {
+      const nick = document.getElementById('select-nick').value;
+      const selectedMonth = document.getElementById('select-month-year').value;
+      document.getElementById('current-nick-title').innerText = nick;
+      const tbody = document.getElementById('order-tbody');
+      tbody.innerHTML = '';
+
+      let list = orders[nick] || [];
+
+      if (selectedMonth !== 'ALL') {
+        list = list.filter(o => getMonthYearKey(o.shopTime) === selectedMonth);
+      }
+
+      const daySpendMap = {};
+
+      list.forEach((ord, index) => {
+        const tr = document.createElement('tr');
+        const mDay = ord.shopTime.match(/年[0-9]{1,2}月([0-9]{1,2})日/);
+        const dayNum = mDay ? parseInt(mDay[1], 10) : 0;
+        const myKey = getMonthYearKey(ord.shopTime);
+        const dayKey = `${myKey}_${dayNum}`;
+
+        if (!daySpendMap[dayKey]) daySpendMap[dayKey] = 0;
+        daySpendMap[dayKey] += ord.tienThe;
+        const cumulativeSpend = daySpendMap[dayKey];
+
+        const term = terms.find(t => t.day === dayNum);
+        let hutPoint = 0, datTran = 'Không có trần', quetThem = 0;
+
+        if (term && term.maxSpend > 0) {
+          if (cumulativeSpend >= term.maxSpend) {
+            datTran = '<span class="tag-cap">ĐÃ ĐẠT TRẦN</span>';
+            quetThem = 0;
+            hutPoint = Math.max(0, Math.floor(cumulativeSpend * term.rate) - term.cap);
+          } else {
+            datTran = '<span class="tag-ok">Chưa trần</span>';
+            quetThem = term.maxSpend - cumulativeSpend;
+          }
+        }
+
+        const laiLo = ord.giaThuMua > 0 ? (ord.giaThuMua - ord.vonRong) : 0;
+        const chenhLechTienMat = ord.giaThuMua > 0 ? (ord.giaThuMua - ord.tienThe) : 0;
+
+        tr.innerHTML = `
+          <td class="text-center">${index + 1}</td>
+          <td>${ord.shopTime}</td>
+          <td title="${ord.product}" style="min-width: 300px; max-width: 520px; white-space: normal; line-height: 1.45; word-break: break-word;">${ord.product}</td>
+          <td class="text-right">${ord.giaGoc.toLocaleString()}</td>
+          <td class="text-right text-bold">${ord.tienThe.toLocaleString()}</td>
+          <td class="text-right">${ord.pointDung.toLocaleString()}</td>
+          <td class="text-right" style="color: #16a34a; font-weight: bold;">${ord.pointNhan.toLocaleString()}</td>
+          <td class="text-right text-bold" style="background: #f8fafc;">${ord.vonRong.toLocaleString()}</td>
+          <td class="text-center">
+            <input type="text" class="buy-input" value="${ord.giaThuMua > 0 ? ord.giaThuMua.toLocaleString() : ''}" 
+                   placeholder="Nhập giá" onchange="updateBuyPrice('${nick}', ${ord.id}, this.value)">
+          </td>
+          <td class="text-right text-bold" style="color: ${laiLo >= 0 ? '#16a34a' : '#dc2626'}">${ord.giaThuMua > 0 ? laiLo.toLocaleString() : '-'}</td>
+          <td class="text-right text-bold">${ord.giaThuMua > 0 ? chenhLechTienMat.toLocaleString() : '-'}</td>
+          <td class="text-right" style="color: #dc2626;">${hutPoint.toLocaleString()}</td>
+          <td class="text-center">${datTran}</td>
+          <td class="text-right text-bold">${quetThem.toLocaleString()}</td>
+          <td class="text-center"><button style="background: none; border: none; cursor: pointer; color: #dc2626;" onclick="xoaDonHang('${nick}', ${ord.id})">❌</button></td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // TAB 2: TỔNG HỢP ĐƠN HÀNG
+    function renderAllOrdersTable() {
+      const tbody = document.getElementById('all-orders-tbody');
+      const selectedMonth = document.getElementById('select-month-year').value;
+      tbody.innerHTML = '';
+
+      let allList = [];
+      Object.keys(orders).forEach(nick => {
+        (orders[nick] || []).forEach(ord => {
+          let dateOnlyKey = 0, fullTimeKey = 0;
+          const mDate = ord.shopTime.match(/([0-9]{4}年[0-9]{1,2}月[0-9]{1,2}日)\s*([0-9]{1,2}:[0-9]{1,2})?/);
+          if (mDate) {
+            const datePart = mDate[1].replace(/年|月/g, '/').replace(/日/g, '');
+            const timePart = mDate[2] || '00:00';
+            const dOnly = new Date(datePart);
+            dateOnlyKey = isNaN(dOnly.getTime()) ? 0 : dOnly.getTime();
+            const dFull = new Date(datePart + ' ' + timePart);
+            fullTimeKey = isNaN(dFull.getTime()) ? 0 : dFull.getTime();
+          }
+
+          allList.push({
+            ...ord,
+            nick,
+            dateOnlyKey,
+            fullTimeKey,
+            monthYearKey: getMonthYearKey(ord.shopTime)
+          });
+        });
+      });
+
+      if (selectedMonth !== 'ALL') {
+        allList = allList.filter(o => o.monthYearKey === selectedMonth);
+      }
+
+      allList.sort((a, b) => {
+        if (a.dateOnlyKey !== b.dateOnlyKey) return a.dateOnlyKey - b.dateOnlyKey;
+        if (a.product !== b.product) return a.product.localeCompare(b.product);
+        return a.fullTimeKey - b.fullTimeKey;
+      });
+
+      let prevGroupKey = '';
+      let stt = 1;
+
+      allList.forEach(ord => {
+        const curGroupKey = `${ord.dateOnlyKey}_${ord.product}`;
+
+        if (prevGroupKey !== '' && curGroupKey !== prevGroupKey) {
+          const spacerTr = document.createElement('tr');
+          spacerTr.className = 'spacer-row';
+          spacerTr.innerHTML = `<td colspan="7"></td>`;
+          tbody.appendChild(spacerTr);
+        }
+
+        const tr = document.createElement('tr');
+        const laiLo = ord.giaThuMua > 0 ? (ord.giaThuMua - ord.vonRong) : 0;
+        const chenhLech = ord.giaThuMua > 0 ? (ord.giaThuMua - ord.tienThe) : 0;
+
+        tr.innerHTML = `
+          <td class="text-center">${stt++}</td>
+          <td class="text-center">${ord.shopTime}</td>
+          <td class="text-center text-bold">${ord.nick}</td>
+          <td title="${ord.product}" style="min-width: 450px; white-space: normal; line-height: 1.45; word-break: break-word;">${ord.product}</td>
+          <td class="text-center">
+            <input type="text" class="buy-input" value="${ord.giaThuMua > 0 ? ord.giaThuMua.toLocaleString() : ''}" 
+                   placeholder="Nhập giá" onchange="updateBuyPrice('${ord.nick}', ${ord.id}, this.value); renderAllOrdersTable();">
+          </td>
+          <td class="text-right text-bold" style="color: ${laiLo >= 0 ? '#16a34a' : '#dc2626'}">${ord.giaThuMua > 0 ? laiLo.toLocaleString() : ''}</td>
+          <td class="text-right text-bold">${ord.giaThuMua > 0 ? chenhLech.toLocaleString() : ''}</td>
+        `;
+        tbody.appendChild(tr);
+        prevGroupKey = curGroupKey;
+      });
+    }
+
+    // TAB 3: DASHBOARD TỔNG HỢP
+    function renderSummaryTable() {
+      const tbody = document.getElementById('summary-tbody');
+      const selectedMonth = document.getElementById('select-month-year').value;
+      tbody.innerHTML = '';
+
+      const labelEl = document.getElementById('summary-month-label');
+      if (selectedMonth === 'ALL') {
+        labelEl.innerText = '(Tất cả thời gian)';
+      } else {
+        const [y, m] = selectedMonth.split('-');
+        labelEl.innerText = `(Tháng ${m}/${y})`;
+      }
+
+      let sumOrders = 0, sumThe = 0, sumDung = 0, sumNhan = 0, sumRong = 0, sumMua = 0, sumLai = 0, sumTienMat = 0;
+
+      nickList.forEach(nItem => {
+        const nick = nItem.name;
+        let list = orders[nick] || [];
+
+        if (selectedMonth !== 'ALL') {
+          list = list.filter(o => getMonthYearKey(o.shopTime) === selectedMonth);
+        }
+
+        const count = list.length;
+        const the = list.reduce((s, o) => s + o.tienThe, 0);
+        const dung = list.reduce((s, o) => s + o.pointDung, 0);
+        const nhan = list.reduce((s, o) => s + o.pointNhan, 0);
+        const rong = list.reduce((s, o) => s + o.vonRong, 0);
+        const mua = list.reduce((s, o) => s + (o.giaThuMua || 0), 0);
+        const lai = list.reduce((s, o) => s + (o.giaThuMua > 0 ? (o.giaThuMua - o.vonRong) : 0), 0);
+        const mat = list.reduce((s, o) => s + (o.giaThuMua > 0 ? (o.giaThuMua - o.tienThe) : 0), 0);
+
+        sumOrders += count; sumThe += the; sumDung += dung; sumNhan += nhan;
+        sumRong += rong; sumMua += mua; sumLai += lai; sumTienMat += mat;
+
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-bold">${nick}</td>
+          <td class="text-center">${count}</td>
+          <td class="text-right">${the.toLocaleString()}</td>
+          <td class="text-right">${dung.toLocaleString()}</td>
+          <td class="text-right" style="color: #16a34a;">${nhan.toLocaleString()}</td>
+          <td class="text-right text-bold">${rong.toLocaleString()}</td>
+          <td class="text-right">${mua.toLocaleString()}</td>
+          <td class="text-right text-bold" style="color: ${lai >= 0 ? '#16a34a' : '#dc2626'}">${lai.toLocaleString()}</td>
+          <td class="text-right text-bold">${mat.toLocaleString()}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+
+      const trTotal = document.createElement('tr');
+      trTotal.style.background = '#e6f4ea';
+      trTotal.style.fontWeight = 'bold';
+      trTotal.innerHTML = `
+        <td>TỔNG CỘNG</td>
+        <td class="text-center">${sumOrders}</td>
+        <td class="text-right">${sumThe.toLocaleString()}</td>
+        <td class="text-right">${sumDung.toLocaleString()}</td>
+        <td class="text-right" style="color: #16a34a;">${sumNhan.toLocaleString()}</td>
+        <td class="text-right">${sumRong.toLocaleString()}</td>
+        <td class="text-right">${sumMua.toLocaleString()}</td>
+        <td class="text-right" style="color: #dc2626;">${sumLai.toLocaleString()}</td>
+        <td class="text-right">${sumTienMat.toLocaleString()}</td>
+      `;
+      tbody.appendChild(trTotal);
+    }
+
+    // TAB 4: ĐIỀU KHOẢN
+    async function xuLyDieuKhoan() {
+      const raw = document.getElementById('raw-term').value.trim();
+      if (!raw) { alert('Vui lòng dán văn bản điều khoản!'); return; }
+
+      const lines = raw.split('\n').map(l => l.trim()).filter(l => l);
+      let parsed = [];
+
+      const isTableRow = lines.some(l => l.includes('\t') || /^\s*([1-3]?[0-9])\s+[月火水木金土日]\s+/.test(l));
+
+      if (isTableRow) {
+        lines.forEach(line => {
+          if (line.includes('\t')) {
+            const cols = line.split('\t').map(c => c.trim());
+            if (/^[1-3]?[0-9]$/.test(cols[0])) {
+              const day = parseInt(cols[0], 10);
+              const weekday = cols[1] || '';
+              const title = cols[2] || 'Sự kiện';
+              let rate = 0, cap = 0, maxSpend = 0;
+              if (cols[3]) {
+                const mR = cols[3].match(/([0-9]+(?:\.[0-9]+)?)\s*%/);
+                if (mR) rate = parseFloat(mR[1]) / 100;
+              }
+              if (cols[4]) {
+                const mC = cols[4].match(/([0-9]+(?:[,\.][0-9]+)*)/);
+                if (mC) cap = parseInt(mC[1].replace(/[,\.]/g, ''), 10);
+              }
+              if (cols[5]) {
+                const mS = cols[5].match(/([0-9]+(?:[,\.][0-9]+)*)/);
+                if (mS) maxSpend = parseInt(mS[1].replace(/[,\.]/g, ''), 10);
+              } else if (rate > 0 && cap > 0) {
+                maxSpend = Math.round(cap / rate);
+              }
+              parsed.push({ day, weekday, title, rate, cap, maxSpend, note: cols[6] || '' });
+            }
+          }
+        });
+      }
+
+      if (parsed.length === 0) {
+        const dayPattern = /(?:^|\n)\s*([1-3]?[0-9])\s*(?:\n|\s+)\s*([月火水木金土日])/g;
+        let m;
+        const matches = [];
+        while ((m = dayPattern.exec(raw)) !== null) {
+          matches.push({ day: parseInt(m[1], 10), weekday: m[2], index: m.index, end: m.index + m[0].length });
+        }
+        matches.forEach((cur, i) => {
+          const nextStart = matches[i + 1] ? matches[i + 1].index : raw.length;
+          const sub = raw.substring(cur.end, nextStart).trim();
+          let rate = 0, cap = 0, maxSpend = 0, title = 'Bình thường';
+          if (sub) {
+            title = sub.split('\n')[0];
+            const mR = sub.match(/[+＋]([0-9]+(?:\.[0-9]+)?)\s*%/);
+            if (mR) rate = parseFloat(mR[1]) / 100;
+            const mC = sub.match(/付与上限\s*([0-9,]+)/);
+            if (mC) cap = parseInt(mC[1].replace(/,/g, ''), 10);
+            if (rate > 0 && cap > 0) maxSpend = Math.round(cap / rate);
+          }
+          parsed.push({ day: cur.day, weekday: cur.weekday, title, rate, cap, maxSpend, note: sub });
+        });
+      }
+
+      if (parsed.length === 0) {
+        alert('Không tìm thấy thông tin Ngày & Thứ trong nội dung vừa dán!');
+        return;
+      }
+
+      parsed.forEach(p => {
+        const existIdx = terms.findIndex(t => t.day === p.day);
+        if (existIdx !== -1) terms[existIdx] = p;
+        else terms.push(p);
+      });
+
+      terms.sort((a, b) => a.day - b.day);
+      await saveData();
+      document.getElementById('raw-term').value = '';
+      renderTermTable();
+      alert(`Đã cập nhật ${parsed.length} mục điều khoản và sắp xếp ngày tăng dần!`);
+    }
+
+    function renderTermTable() {
+      const tbody = document.getElementById('term-tbody');
+      tbody.innerHTML = '';
+      terms.forEach(t => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-center text-bold">${t.day}</td>
+          <td class="text-center">${t.weekday}</td>
+          <td>${t.title}</td>
+          <td class="text-right text-bold" style="color: #16a34a;">${(t.rate * 100).toFixed(0)}%</td>
+          <td class="text-right">${t.cap.toLocaleString()}</td>
+          <td class="text-right text-bold">${t.maxSpend.toLocaleString()}</td>
+          <td style="color: #64748b; font-size: 11px;">${t.note}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function khoiPhucDieuKhoanMau() {
+      terms = [
+        { day: 2, weekday: '金', title: 'ボーナスストアPlus (+2%)', rate: 0.02, cap: 5000, maxSpend: 250000, note: '' },
+        { day: 4, weekday: '日', title: 'プレミアムな日曜日 (+5%)', rate: 0.05, cap: 3000, maxSpend: 60000, note: '' },
+        { day: 11, weekday: '日', title: 'プレミアムな日曜日 (+5%)', rate: 0.05, cap: 3000, maxSpend: 60000, note: '' },
+        { day: 15, weekday: '木', title: '5のつく日 (+4%)', rate: 0.04, cap: 2000, maxSpend: 50000, note: '' }
+      ];
+      await saveData();
+      renderTermTable();
+    }
+
+    // TAB 5: QUẢN LÝ NICK
+    function renderNickManagerTable() {
+      const tbody = document.getElementById('nicks-tbody');
+      tbody.innerHTML = '';
+      nickList.forEach((n, idx) => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td class="text-center">${idx + 1}</td>
+          <td><input type="text" value="${n.name}" onchange="suaTenNick(${idx}, this.value)"></td>
+          <td><input type="text" value="${n.phone || ''}" placeholder="Nhập SĐT..." onchange="suaSdtNick(${idx}, this.value)"></td>
+          <td class="text-center">
+            <button style="padding: 4px 8px; background: #ef4444; color: white; border: none; border-radius: 4px; cursor: pointer;" onclick="xoaNickDanhBa(${idx})">Xóa</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    async function themNickDanhBa() {
+      const name = document.getElementById('new-nick-name').value.trim();
+      const phone = document.getElementById('new-nick-phone').value.trim();
+      if (!name) { alert('Vui lòng nhập tên Nick!'); return; }
+      if (nickList.some(n => n.name === name)) { alert('Tên Nick này đã tồn tại!'); return; }
+
+      nickList.push({ name, phone });
+      await saveData();
+      initNickSelect();
+      renderNickManagerTable();
+      document.getElementById('new-nick-name').value = '';
+      document.getElementById('new-nick-phone').value = '';
+    }
+
+    async function suaTenNick(idx, newName) {
+      newName = newName.trim();
+      if (!newName) return;
+      const oldName = nickList[idx].name;
+      nickList[idx].name = newName;
+      if (orders[oldName] && oldName !== newName) {
+        orders[newName] = orders[oldName];
+        delete orders[oldName];
+      }
+      await saveData();
+      initNickSelect();
+    }
+
+    async function suaSdtNick(idx, newPhone) {
+      nickList[idx].phone = newPhone.trim();
+      await saveData();
+    }
+
+    async function xoaNickDanhBa(idx) {
+      const name = nickList[idx].name;
+      if (confirm(`Bạn có chắc muốn xóa Nick [${name}] khỏi hệ thống?`)) {
+        nickList.splice(idx, 1);
+        delete orders[name];
+        await saveData();
+        initNickSelect();
+        renderNickManagerTable();
+      }
+    }
+
+    // XUẤT EXCEL
+    function exportExcel() {
+      if (typeof XLSX === 'undefined') {
+        alert('Cần có mạng internet lần đầu để tải thư viện xuất Excel!');
+        return;
+      }
+      const selectedMonth = document.getElementById('select-month-year').value;
+      const wb = XLSX.utils.book_new();
+
+      const allRows = [];
+      document.querySelectorAll('#all-orders-tbody tr:not(.spacer-row)').forEach(tr => {
+        const tds = tr.querySelectorAll('td');
+        if (tds.length >= 7) {
+          allRows.push({
+            'STT': tds[0].innerText,
+            'Ngày đặt': tds[1].innerText,
+            'Tên Profile / Nick': tds[2].innerText,
+            'ご注文商品': tds[3].innerText,
+            'Giá thu mua (円)': tds[4].querySelector('input').value,
+            'Lãi / Lỗ ròng (円)': tds[5].innerText,
+            'Chênh lệch tiền mặt (円)': tds[6].innerText
+          });
+        }
+      });
+      const wsAll = XLSX.utils.json_to_sheet(allRows);
+      XLSX.utils.book_append_sheet(wb, wsAll, "Tổng hợp đơn hàng");
+
+      nickList.forEach(nItem => {
+        let list = orders[nItem.name] || [];
+        if (selectedMonth !== 'ALL') {
+          list = list.filter(o => getMonthYearKey(o.shopTime) === selectedMonth);
+        }
+        const rows = list.map((o, idx) => ({
+          'STT': idx + 1,
+          'Thời gian': o.shopTime,
+          'Sản phẩm': o.product,
+          'Giá gốc (円)': o.giaGoc,
+          'Tiền thẻ (円)': o.tienThe,
+          'Point dùng (pt)': o.pointDung,
+          'Point nhận (pt)': o.pointNhan,
+          'Vốn ròng (円)': o.vonRong,
+          'Giá thu mua (円)': o.giaThuMua,
+          'Lãi/Lỗ ròng (円)': o.giaThuMua > 0 ? (o.giaThuMua - o.vonRong) : 0,
+          'Chênh lệch tiền mặt (円)': o.giaThuMua > 0 ? (o.giaThuMua - o.tienThe) : 0
+        }));
+        const ws = XLSX.utils.json_to_sheet(rows);
+        XLSX.utils.book_append_sheet(wb, ws, nItem.name);
+      });
+
+      const fileName = selectedMonth === 'ALL' ? "Yahoo_Sedori_TatCa.xlsx" : `Yahoo_Sedori_${selectedMonth}.xlsx`;
+      XLSX.writeFile(wb, fileName);
+    }
+
+    // KHỞI CHẠY KHI MỞ TRANG
+    loadDataFromCloud();
+  </script>
+</body>
+</html>
